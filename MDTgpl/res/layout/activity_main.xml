@@ -1,0 +1,132 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    tools:context=".MainActivity" >
+
+    <LinearLayout
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:orientation="vertical" >
+
+        <Button
+            android:id="@+id/responseB"
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/linearLayout1"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content" >
+
+        <Button
+            android:id="@+id/startB"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.4"
+            android:onClick="start"
+            android:text="Start" />
+
+        <Button
+            android:id="@+id/stopB"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.4"
+            android:enabled="false"
+            android:onClick="stop"
+            android:text="Stop" />
+    </LinearLayout>
+
+    <CheckBox
+        android:id="@+id/tactileC"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_below="@+id/linearLayout1"
+        android:layout_marginTop="65dp"
+        android:layout_weight="0.4"
+        android:checked="true"
+        android:onClick="toggleTactile"
+        android:text="tactile stimulus" />
+
+    <CheckBox
+        android:id="@+id/visualC"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_below="@+id/tactileC"
+        android:onClick="toggleVisual"
+        android:text="visual stimulus" />
+
+    <CheckBox
+        android:id="@+id/longpressC"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_below="@+id/linearLayout1"
+        android:onClick="toggleLongPressAlarm"
+        android:text="long press alarm (if user holds screen)" />
+
+    <CheckBox
+        android:id="@+id/externalC"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/visualC"
+        android:layout_marginTop="30dp"
+        android:onClick="toggleExternalButton"
+        android:text="external button via microphon jack" />
+
+    <RadioButton
+        android:id="@+id/buttonClosedR"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/externalC"
+        android:enabled="false"
+        android:text="external button pressed" />
+
+    <SeekBar 
+        android:id="@+id/thresholdSB"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/buttonClosedR" />
+
+    <TextView
+        android:id="@+id/thresholdV"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/thresholdSB"
+        android:text="threshold for external button"
+        android:textAppearance="?android:attr/textAppearanceSmall" />
+
+    <RadioButton
+        android:id="@+id/connectedRB"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentRight="true"
+        android:checked="false"
+        android:enabled="false"
+        android:text="_" />
+
+    <TextView
+        android:id="@+id/resultV"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentRight="false"
+        android:layout_centerHorizontal="true"
+        android:layout_centerVertical="false" />
+
+    <Button
+        android:id="@+id/helpB"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentLeft="true"
+        android:gravity="bottom|left"
+        android:onClick="showHelp"
+        android:text="\?" />
+
+</RelativeLayout>
