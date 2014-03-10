@@ -4,7 +4,7 @@ MDT
 Mobile Detection Task (MDT) on Android
 
 For more information please visit: http://www.lfe.mw.tum.de/en/mdt  
-The compiled app can be downloaded at the Playstore, for free:
+The compiled app can be downloaded at the Playstore, for free: https://play.google.com/store/apps/details?id=de.tum.mw.lfe.mdt
 
 ----
 
