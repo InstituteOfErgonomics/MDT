@@ -5,6 +5,7 @@ package de.tum.mw.lfe.mdt;
 //------------------------------------------------------
 //Version	Date			Author				Mod
 //1			Jan, 2014		Michael Krause		initial
+//1.1		May, 2014		Michael Krause		external button bugs(loop, downCount)
 //
 //------------------------------------------------------
 
@@ -483,7 +484,7 @@ public class Mdt extends Activity {
 		        	
 		        	try{
 		    			AudioManager audioManager = (AudioManager)getSystemService(Context.AUDIO_SERVICE); 
-		    			musicVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)/4;//set music volume to 25%
+		    			musicVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)/3;//set music volume to 33%
 		        	}catch(Exception e){
 		        		Log.e(TAG, "getStreamMaxVolume() failed: "+e.getMessage());
 		        	}
@@ -583,7 +584,8 @@ public class Mdt extends Activity {
 		                				count++;
 		                				
 		                				if ( (mExternalButtonClosed == OPEN) &&
-		                					 ((timeOfThisSample - externalButtonLastPressed ) > IN_BUTTON_DEBOUNCE)){//debounce
+			                					 ((timeOfThisSample - externalButtonLastPressed ) > IN_BUTTON_DEBOUNCE) &&
+			                					 ((timeOfThisSample - externalButtonLastReleased) > IN_BUTTON_DEBOUNCE)){//DEBUGED in V1.1
 		                						//button pressed EVENT
 		                						externalButtonLastPressed = timeOfThisSample;
 		                						mExternalButtonClosed = CLOSED;
@@ -595,6 +597,7 @@ public class Mdt extends Activity {
 		                   			if (avg_in_abs_temp < threshold_released){//button released
 		                				
 		                				if ( (mExternalButtonClosed == CLOSED) &&
+		                					 ((timeOfThisSample - externalButtonLastPressed ) > IN_BUTTON_DEBOUNCE) && //DEBUGGED in V1.1
 		                   					 ((timeOfThisSample - externalButtonLastReleased) > IN_BUTTON_DEBOUNCE)){//debounce
 		                   						//button pressed EVENT
 		                						externalButtonLastReleased = timeOfThisSample;
@@ -696,8 +699,8 @@ public class Mdt extends Activity {
         }
     	
         mAudioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, OUT_SAMPLE_RATE, AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT, mOutSoundData.length*2, AudioTrack.MODE_STATIC);
-        mAudioTrack.setLoopPoints(0, OUT_SAMPLE_NUM, -1);
         mAudioTrack.write(mOutSoundData, 0, mOutSoundData.length);
+        mAudioTrack.setLoopPoints(0, OUT_SAMPLE_NUM, -1);//first write() than setLoop()! some phones are picky. debugged in V1.1
         mAudioTrack.play();
         
         //ensure audioTrack volume is on
