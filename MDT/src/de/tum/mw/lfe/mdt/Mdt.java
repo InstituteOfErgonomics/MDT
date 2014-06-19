@@ -6,7 +6,7 @@ package de.tum.mw.lfe.mdt;
 //Version	Date			Author				Mod
 //1			Jan, 2014		Michael Krause		initial
 //1.1		May, 2014		Michael Krause		external button bugs(loop, downCount)
-//
+//1.2		June, 2014		Michael Krause		removed some bugs
 //------------------------------------------------------
 
 /*
@@ -145,9 +145,10 @@ public class Mdt extends Activity {
 	public static final int MAX_STIMULUS_DURATION = 1000; //[ms]
 	public static final int MIN_RT = 100; //[ms] lower is a cheat/not possible
 	public static final int MAX_RT = 2500; //[ms] higher is a miss
-	public static final String CHEAT = "C"; // string for cheat in csv
-	public static final String HIT  = "H"; // string for cheat in csv
-	public static final String MISS = "M"; // string for cheat in csv
+	public static final String CHEAT = "C"; // string for cheat in csv; or 'premature response' 
+	public static final String HIT  = "H"; // string for cheat in csv; or 'requested response'
+	public static final String MISS = "M"; // string for cheat in csv; or 'missing response'
+										//note: repeated and unrequested responses are indirectly handled by incrementing mButtonDownCount
 	//enum results
 	public static final byte B_CHEAT = 0; // enum byte for cheat in tcp packets
 	public static final byte B_HIT = 1; // enum for hit in tcp packets
@@ -188,7 +189,7 @@ public class Mdt extends Activity {
     private static final int OUT_SAMPLE_NUM = OUT_SOUND_DURATION  * OUT_SAMPLE_RATE;
     private short mOutSoundData[] = new short[OUT_SAMPLE_NUM];
     private static final int IN_SAMPLE_RATE = OUT_SAMPLE_RATE*2;
-    private static final short IN_BUTTON_DEBOUNCE = 20;//milli sec for debouncing
+    private static final short IN_BUTTON_DEBOUNCE = 50;//milli sec for debouncing
     
     private static final boolean OPEN = false;// external button open
     private static final boolean CLOSED = true;// external button closed
@@ -484,7 +485,7 @@ public class Mdt extends Activity {
 		        	
 		        	try{
 		    			AudioManager audioManager = (AudioManager)getSystemService(Context.AUDIO_SERVICE); 
-		    			musicVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)/3;//set music volume to 33%
+		    			musicVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)/2;//set music volume to 50%
 		        	}catch(Exception e){
 		        		Log.e(TAG, "getStreamMaxVolume() failed: "+e.getMessage());
 		        	}
@@ -562,17 +563,17 @@ public class Mdt extends Activity {
 		                		short in_abs_temp;
 
 	            				int threshold_pressed = parent.getThreshold();
-	            				int threshold_released = parent.getThreshold() -parent.getThreshold()/4;//we lower the released threshold to 75%, kind of hysteresis
+	            				int threshold_released = parent.getThreshold() -parent.getThreshold()/2;//we lower the released threshold by 50%, kind of hysteresis
 	            				
 		                		for (int i=0; i < read; i++){
 		                			in_abs_temp = (short)Math.abs(inSoundData[i]);
-		                			sum += in_abs_temp;
-		                			// do some weak averaging, if we captured the zero crossing
-		                			avg_in_abs_temp = (previous_in_abs_temp[0] + previous_in_abs_temp[1] + previous_in_abs_temp[2] + previous_in_abs_temp[3])/4;
+		                			sum += in_abs_temp;//for visual bar
 		                			previous_in_abs_temp[3] = previous_in_abs_temp[2];
 		                			previous_in_abs_temp[2] = previous_in_abs_temp[1];
 		                			previous_in_abs_temp[1] = previous_in_abs_temp[0];
 		                			previous_in_abs_temp[0] = in_abs_temp;
+		                			// do some weak averaging, if we captured the zero crossing
+		                			avg_in_abs_temp = (previous_in_abs_temp[0] + previous_in_abs_temp[1] + previous_in_abs_temp[2] + previous_in_abs_temp[3])/4;
 		                			
 		            				//when the sample was taken:
 		            				//  assumed reference is 'now' 
@@ -781,7 +782,7 @@ public class Mdt extends Activity {
         	  
      		 
         	  if (mVisual){
-			     mResponseB.post(visualRed); 
+			     mResponseB.post(visualRed);
 			     mResponseB.postDelayed(visualDefault,MAX_STIMULUS_DURATION);     		 
         	  }
      		 
@@ -959,7 +960,7 @@ public class Mdt extends Activity {
 		 mVibrator.cancel();
 		 mResponseB.post(visualDefault);
 		 
-		 if (mWaitingForResponse){
+		 if ((mWaitingForResponse) && (mRunning)){
 			 long reference = Calendar.getInstance(TimeZone.getTimeZone("UTC")).getTimeInMillis() - SystemClock.uptimeMillis();
 			 long rt = reference + downTime - mOnset;
 			 logging(rt, externalButton);
@@ -1294,15 +1295,23 @@ public class Mdt extends Activity {
 	public double getHitRate(){
 		double hitRate = -1;
 		int hitCount = 0;
+		int missCount = 0;
 		for (int i = 0; i < mResults.size(); i++){
+			  //count hits
 			   if ((mResults.get(i) >= MIN_RT) && (mResults.get(i) <= MAX_RT) && (mResults.get(i) != NO_RESPONSE)){
 				   hitCount++;
 			   }
-			}
-		if (mResults.size() == 0){
+			   //count misses
+			   if ((mResults.get(i) == NO_RESPONSE) || (mResults.get(i) > MAX_RT)){
+				   missCount++;
+			   }			   
+		}//for
+		
+		//calculate rate
+		if ((hitCount + missCount) == 0){
 			hitRate = 0;
 		}else{
-			hitRate = ((double)hitCount * 100.0 / (double)mResults.size());
+			hitRate = ((double)hitCount * 100.0 / (double)(hitCount + missCount));
 		}
 		return hitRate;
 	}
