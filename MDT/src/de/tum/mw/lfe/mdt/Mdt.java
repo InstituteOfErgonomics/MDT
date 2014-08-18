@@ -7,6 +7,7 @@ package de.tum.mw.lfe.mdt;
 //1			Jan, 2014		Michael Krause		initial
 //1.1		May, 2014		Michael Krause		external button bugs(loop, downCount)
 //1.2		June, 2014		Michael Krause		removed some bugs
+//1.3		Aug, 2014		Michael Krause		rearranged layout + added log of hold time of ext. button
 //------------------------------------------------------
 
 /*
@@ -93,6 +94,7 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.RadioButton;
+import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -120,6 +122,8 @@ public class Mdt extends Activity {
 	private long     mNextOnset;
 	private long     mOnsetDiff;
 	private Boolean  mWaitingForResponse = false;
+	private Boolean  mCalculateHoldTime = false;//flag between press and release to calculate holdtime
+	private long     mHoldTime;//how long the user hold the button last time
 	private ArrayList<Long> mResults = new ArrayList<Long>();//used to store all RTs and calculate avg
 	
 	private ServerRunnable mServerRunnable = null;
@@ -139,7 +143,7 @@ public class Mdt extends Activity {
 	public static final String FOLDER = "MDT"; //folder
 	public static final String FOLDER_DATE_STR = "yyyy-MM-dd";//logging folder format
 	public static final String FILE_EXT = ".txt";
-	public static final String HEADER ="count;timestampStimulusOnset;diffToPlanedOnset;timestampNextOnset;rt;result;buttonDownCount;visual;tactile;longPressAlarmEnabled;longPressAlarmActivated;externalButton;marker;";
+	public static final String HEADER ="count;timestampStimulusOnset;diffToPlanedOnset;timestampNextOnset;rt;result;buttonDownCount;visual;tactile;longPressAlarmEnabled;longPressAlarmActivated;externalButton;holdTime;marker;";
 	public static final int RANDOM_STIMULUS_MIN = 3000; //[ms] random stimulus onset is between MIN and MAX
 	public static final int RANDOM_STIMULUS_MAX = 5000; //[ms]
 	public static final int MAX_STIMULUS_DURATION = 1000; //[ms]
@@ -590,6 +594,7 @@ public class Mdt extends Activity {
 		                						//button pressed EVENT
 		                						externalButtonLastPressed = timeOfThisSample;
 		                						mExternalButtonClosed = CLOSED;
+		                						mCalculateHoldTime = true;//stop the time until release
 		                						//Log.i(TAG,"button closed "+Long.toString(count) +" read:" +Integer.toString(read));
 		                						parent.response(timeOfThisSample, true);//log as external button result
 		                					
@@ -603,6 +608,10 @@ public class Mdt extends Activity {
 		                   						//button pressed EVENT
 		                						externalButtonLastReleased = timeOfThisSample;
 		                						mExternalButtonClosed = OPEN;
+		                						if (mCalculateHoldTime){
+		                							mCalculateHoldTime = false;
+		                							mHoldTime = externalButtonLastReleased -externalButtonLastPressed;
+		                						}
 		                						//Log.i(TAG,"button open");
 		                   						//parent.buttonReleased()
 		                   					
@@ -1085,6 +1094,8 @@ public class Mdt extends Activity {
 		 log.append(CSV_DELIMITER);
 		 log.append(externalButton);
 		 log.append(CSV_DELIMITER);
+		 log.append(mHoldTime);
+		 log.append(CSV_DELIMITER);
 		 log.append((char)mMarker);
 		 log.append(CSV_DELIMITER);
 		 log.append(CSV_LINE_END);
@@ -1146,6 +1157,7 @@ public class Mdt extends Activity {
 		   	   Button stopB = (Button)findViewById(R.id.stopB);
 		   	   Button responseB = (Button)findViewById(R.id.responseB);
 		   	   Button helpB = (Button)findViewById(R.id.helpB);
+		   	   ScrollView scrollView = (ScrollView)findViewById(R.id.configScrollView);
 		   	   
 		   	   TextView resultV = (TextView)findViewById(R.id.resultV);
 		   	   
@@ -1164,24 +1176,12 @@ public class Mdt extends Activity {
 			   	externalButtonC.setChecked(mExternalButtonEnabled);
 			   	externalButtonR.setChecked(mExternalButtonClosed);
 		   		if (mRunning){
-		   			tactileC.setVisibility(View.INVISIBLE);
-		   			visualC.setVisibility(View.INVISIBLE);
-		   			longpressC.setVisibility(View.INVISIBLE);
-		   			externalButtonC.setVisibility(View.INVISIBLE);
-		   			externalButtonR.setVisibility(View.INVISIBLE);
-		   			thresholdV.setVisibility(View.INVISIBLE);
-		   			thresholdSB.setVisibility(View.INVISIBLE);
+		   			scrollView.setVisibility(View.INVISIBLE);
 		   			resultV.setVisibility(View.INVISIBLE);
 		   			helpB.setVisibility(View.INVISIBLE);
 				   	responseB.setText("Touch screen to respond");
 		   		}else{
-		   			tactileC.setVisibility(View.VISIBLE);
-		   			visualC.setVisibility(View.VISIBLE); 
-		   			longpressC.setVisibility(View.VISIBLE); 
-		   			externalButtonC.setVisibility(View.VISIBLE);
-		   			externalButtonR.setVisibility(View.VISIBLE);
-		   			thresholdV.setVisibility(View.VISIBLE);
-		   			thresholdSB.setVisibility(View.VISIBLE);
+		   			scrollView.setVisibility(View.VISIBLE);
 		   			resultV.setVisibility(View.VISIBLE);		   			
 		   			helpB.setVisibility(View.VISIBLE);
 		   			responseB.setText("");
@@ -1253,7 +1253,8 @@ public class Mdt extends Activity {
 		   mCount = 0;
 		   mButtonDownCount = 0;
 		   mLongPressAlarmCount = 0;
-
+		   mHoldTime = 0;
+		   
 		   mWaitingForResponse = false;
 		   mResults = new ArrayList<Long>();//reset result array
 
@@ -1523,10 +1524,10 @@ public class Mdt extends Activity {
 	      tempStr += "<br/>'"+ LONGPRESS_ALARM_ON_SIGN +"' / '"+ LONGPRESS_ALARM_OFF_SIGN +"' long press alarm on/off";
 	      tempStr += "<br/>'"+ EXTERNAL_BUTTON_ON_SIGN +"' / '"+ EXTERNAL_BUTTON_OFF_SIGN +"' to enable/disable external button";	      
 	      tempStr += "<br/><br/>" + getVersionString() + " <a href=\"mailto:krause@tum.de\">krause@tum.de</a> 2014\nInstitute of Ergonomics, TUM.";
-	      tempStr += "<br/><br/>More information on MDT, etc. on <a href=\"http://lfe.mw.tum.de/en/mdt\">http://lfe.mw.tum.de/en/mdt</a>";
+	      tempStr += "<br/><br/>More information on MDT, etc. on <a href=\"http://www.lfe.mw.tum.de/en/mdt\">http://www.lfe.mw.tum.de/en/mdt</a>";
 
 	      final SpannableString s = new SpannableString(Html.fromHtml(tempStr));
-	      Linkify.addLinks(s, Linkify.ALL);
+	      Linkify.addLinks(s, Linkify.EMAIL_ADDRESSES|Linkify.WEB_URLS);
 	      
 	      AlertDialog alert = new AlertDialog.Builder(this)
 	          .setMessage( s )
