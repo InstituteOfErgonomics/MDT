@@ -14,7 +14,7 @@ The basic idea behind the MDT is to implement the DRT protocol on a smart phone 
 
 All these capabilities are possible with the use of a single device you already likely possess! In order to get started with this setup, you will need to download the software we provide here on the site listed below (provided free of charge, so fear not). This source is intentionally open source (GPL) so that you can adjust it to your project needs.
 
-Important note: The absolute reaction time values are not as accurate as you may expect. Nevertheless, sometimes useful to compare relatively experimental conditions or different systems under test. 
+Important note: The absolute reaction time values are not as accurate as you may expect (see e.g., measurements at http://www.lfe.mw.tum.de/en/mdt). Nevertheless, sometimes useful to compare relatively experimental conditions or different systems under test. 
 
 
 
