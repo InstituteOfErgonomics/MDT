@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout android:layout_width="fill_parent" android:layout_height="wrap_content"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <LinearLayout android:orientation="vertical" android:layout_width="fill_parent" android:layout_height="fill_parent">
+        <Button android:id="@+id/responseB" android:layout_width="fill_parent" android:layout_height="fill_parent" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/linearLayout1" android:layout_width="fill_parent" android:layout_height="wrap_content">
+        <Button android:id="@+id/startB" android:layout_width="fill_parent" android:layout_height="wrap_content" android:text="Start" android:layout_weight="0.4" android:onClick="start" />
+        <Button android:enabled="false" android:id="@+id/stopB" android:layout_width="fill_parent" android:layout_height="wrap_content" android:text="Stop" android:layout_weight="0.4" android:onClick="stop" />
+    </LinearLayout>
+    <ScrollView android:id="@+id/configScrollView" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="65.0dip" android:layout_below="@id/linearLayout1">
+        <LinearLayout android:orientation="vertical" android:layout_width="fill_parent" android:layout_height="fill_parent">
+            <View android:background="@color/SEPARATOR" android:layout_width="fill_parent" android:layout_height="1.0dip" />
+            <CheckBox android:id="@+id/tactileC" android:layout_width="wrap_content" android:layout_height="wrap_content" android:checked="true" android:text="tactile stimulus" android:layout_alignParentLeft="true" android:onClick="toggleTactile" />
+            <CheckBox android:id="@+id/visualC" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="visual stimulus" android:layout_below="@id/tactileC" android:layout_alignParentLeft="true" android:onClick="toggleVisual" />
+            <View android:background="@color/SEPARATOR" android:layout_width="fill_parent" android:layout_height="1.0dip" />
+            <CheckBox android:id="@+id/longpressC" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="long press alarm (if user holds screen)" android:layout_alignParentLeft="true" android:onClick="toggleLongPressAlarm" />
+            <View android:background="@color/SEPARATOR" android:layout_width="fill_parent" android:layout_height="1.0dip" />
+            <CheckBox android:id="@+id/externalC" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="external button via microphon jack" android:layout_below="@id/visualC" android:onClick="toggleExternalButton" />
+            <RadioButton android:enabled="false" android:id="@+id/buttonClosedR" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="external button pressed" android:layout_below="@id/externalC" />
+            <SeekBar android:id="@+id/thresholdSB" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_below="@id/buttonClosedR" />
+            <TextView android:textAppearance="?android:textAppearanceSmall" android:id="@+id/thresholdV" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="threshold for external button" android:layout_below="@id/thresholdSB" />
+            <View android:background="@color/SEPARATOR" android:layout_width="fill_parent" android:layout_height="1.0dip" />
+        </LinearLayout>
+    </ScrollView>
+    <RadioButton android:enabled="false" android:id="@+id/connectedRB" android:layout_width="wrap_content" android:layout_height="wrap_content" android:checked="false" android:text="_" android:layout_alignParentRight="true" android:layout_alignParentBottom="true" />
+    <TextView android:id="@+id/resultV" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentRight="false" android:layout_alignParentBottom="true" android:layout_centerHorizontal="true" android:layout_centerVertical="false" />
+    <Button android:gravity="bottom|left|center" android:id="@+id/helpB" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="\?" android:layout_alignParentLeft="true" android:layout_alignParentBottom="true" android:onClick="showHelp" />
+</RelativeLayout><!-- From: file:/C:/Users/krause/AndroidstudioProjects/MDT/app/src/main/res/layout/activity_main.xml -->
