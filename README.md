@@ -23,3 +23,6 @@ Important note: The absolute reaction time values are not as accurate as you may
 If you connect wires and equipment to a subject, please do so with caution and take precautionary measures (e.g. beware of electrical safety, etc.).
 
 If experimental setups include a driving task, special care must be taken. e.g. no cables or device parts should interfere with being able to safely perform the driving task. As a general piece of advice, please think about what can fail while preparing the experiment (something becomes loose or gets stuck to other parts,...) and take every measure possible to avoid such occurrences.
+
+----------
+[![DOI](https://zenodo.org/badge/12944/InstituteOfErgonomics/MDT.svg)](http://dx.doi.org/10.5281/zenodo.17600)
