@@ -9,6 +9,7 @@ package de.tum.mw.lfe.mdt;
 //1.2		June, 2014		Michael Krause		removed some bugs
 //1.3		Aug, 2014		Michael Krause		rearranged layout + added log of hold time of ext. button
 //1.4		Feb, 2015		Michael Krause		converted from eclipse to android studio
+//1.5		Dec, 2015		Michael Krause		added NanoHttpd webserver
 //------------------------------------------------------
 
 /*
@@ -31,6 +32,7 @@ package de.tum.mw.lfe.mdt;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -40,6 +42,8 @@ import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
@@ -48,6 +52,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.TimeZone;
 
@@ -100,6 +105,8 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import fi.iki.elonen.NanoHTTPD;
+
 
 public class Mdt extends Activity {
 	
@@ -126,7 +133,9 @@ public class Mdt extends Activity {
 	private Boolean  mCalculateHoldTime = false;//flag between press and release to calculate holdtime
 	private long     mHoldTime;//how long the user hold the button last time
 	private ArrayList<Long> mResults = new ArrayList<Long>();//used to store all RTs and calculate avg
-	
+
+    private AlertDialog mAlert;
+
 	private ServerRunnable mServerRunnable = null;
 	private Thread mServerThread = null;
 	private List<byte[]> mToSend = new ArrayList<byte[]>();
@@ -204,8 +213,10 @@ public class Mdt extends Activity {
     private AudioRecorderRunnable mAudioRecorderRunnable = null;
     private Thread mAudioRecorderThread = null;
     private int mRestoreVolume = 0;//the app stores the Music stream value onResume and restores the value onPause 
-    
-    
+
+    public static final int WEB_PORT = 7070;//provide webserver gui on this port
+    public static final int REFRESH = 2;//refresh every 2s
+    private WebServer mWebserver;
 	
 	//-------------------------------------------------------------------
 	final Handler mGuiHandler = new Handler(){
@@ -260,8 +271,280 @@ public class Mdt extends Activity {
 			    abortBroadcast();
 			}
 		}
-	*/		
-	//-------------------------------------------------------------------
+	*/
+
+    //-------------------------------------------------------------------
+    private class WebServer extends NanoHTTPD {
+
+        public WebServer() {
+            super(WEB_PORT);
+        }
+
+        @Override
+        public Response serve(String uri, Method method,
+                              Map<String, String> header, Map<String, String> parameters,
+                              Map<String, String> files) {
+
+            Log.i(TAG, "WebServer():" + uri);
+
+            String serverURL = "http://" + getIpAddress() + ":" + Integer.toString(WEB_PORT);
+
+            if (uri.endsWith("listing")) {
+                File folder = new File(getLoggingFolder());
+                File[] dir1files = folder.listFiles();
+                StringBuilder page = new StringBuilder(10000);//~10KByte
+                page.append("<html><head><title>Mdt File Listing</title></head><body><a href=\"" + serverURL + "\">&lt;&lt;&lt;Control panel</a><hr/>");
+                page.append("<br/>");
+                page.append(getLoggingFolder());
+                page.append("<br/>");
+                page.append("<ul>");
+                for (File file1 : dir1files) {
+                    if (file1.isDirectory()) {
+                        page.append("<li><b>");
+                        page.append(file1.getName());
+                        page.append("</b></li>");
+                        page.append("<ul>");
+                        File[] dir2files = file1.listFiles();
+                        for (File file2 : dir2files) {
+                            page.append("<li>");
+                            String fname = "";
+                            try {
+                                fname = URLEncoder.encode(file2.getName(), "UTF-8");
+                            } catch (Exception e) {
+                                Log.e(TAG, "URLEncoder failed: " + e.getMessage());
+                                fname = "";
+                            }
+                            page.append("<a href=\"" + serverURL + "/download?filename=" + fname + "\">" + fname + "</a>");
+                            page.append("</li>");
+                        }
+                        page.append("</ul>");
+                    } else {
+                        page.append("<li>");
+                        String fname = "";
+                        try {
+                            fname = URLEncoder.encode(file1.getName(), "UTF-8");
+                        } catch (Exception e) {
+                            Log.e(TAG, "URLEncoder failed: " + e.getMessage());
+                            fname = "";
+                        }
+                        page.append("<a href=\"" + serverURL + "/download?filename=\"" + fname + "\">" + fname + "</a>");
+                        page.append("</li>");
+                    }
+
+                }
+                page.append("</ul>");
+                page.append("</body></html>");
+                return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, NanoHTTPD.MIME_HTML, page.toString());
+            }
+
+
+
+            if ((uri.contains("download"))) {
+                String filename = URLDecoder.decode(parameters.get("filename"));
+
+                File folder = new File(getLoggingFolder());
+                File[] dir1files = folder.listFiles();
+                for (File file1 : dir1files) {
+                    if (file1.isDirectory()) {
+                        File[] dir2files = file1.listFiles();
+                        for (File file2 : dir2files) {
+                            if (file2.getName().equals(filename)) {
+                                try{
+                                    FileInputStream fis = new FileInputStream(file2);
+                                    return newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, fis, file2.length());
+                                } catch (Exception e) {
+                                    Log.e(TAG, "send file failed: " + e.getMessage());
+                                }
+                            }
+                        }
+                    } else {
+                        if (file1.getName().equals(filename)) {
+                            //this should not happen; data files are always stored inside subfolders
+                        }
+                    }
+                }
+
+            }
+
+
+            if (uri.contains("control")) {
+                String command = parameters.get("command");
+                if (command.equals("start")) {
+                    startExp();
+                }
+                if (command.equals("stop")) {
+                    stopExp();
+                }
+                if (command.equals("tactileOn")) {
+                    mTactile= true;
+                    refreshGui();
+                }
+                if (command.equals("tactileOff")) {
+                    mTactile= false;
+                    refreshGui();
+                }
+                if (command.equals("visualOn")) {
+                    mVisual= true;
+                    refreshGui();
+                }
+                if (command.equals("visualOff")) {
+                    mVisual= false;
+                    refreshGui();
+                }
+                if (command.equals("longpressOn")) {
+                    mLongPressAlarmEnabled= true;
+                    removeOrStopLongPressAlarm();
+                    refreshGui();
+                }
+                if (command.equals("longpressOff")) {
+                    mLongPressAlarmEnabled= false;
+                    removeOrStopLongPressAlarm();
+                    refreshGui();
+                }
+                if (command.equals("externalOn")) {
+                    enableExternalButton();
+                }
+                if (command.equals("externalOff")) {
+                    disableExternalButton();
+                }
+
+                if (command.equals("marker")) {
+                    int parameter  = 48+Integer.parseInt(parameters.get("marker"));//48+x convert 1-9 to ascii code
+
+                    for (int i=0; i < MARKER.length; i++){
+                        if (parameter == MARKER[i]){
+                            mMarker = MARKER[i];
+                            Message msg2 = mGuiHandler.obtainMessage();
+                            msg2.what = UPDATE_MARKER_TEXT;
+                            mGuiHandler.sendMessage(msg2);
+
+                        }
+                    } //for
+
+                }
+            }
+
+            if ((uri.contains("licence"))) {
+                StringBuilder page = new StringBuilder(10000);//~10KByte
+                page.append("*below the licence for the code part (NanoHttpd) that allowed a quick implementation of the web server: s\n");
+                page.append("*********************************************\n");
+                page.append("*NanoHttpd - Core\n");
+                page.append("*%% \n");
+                page.append("*Copyright(C) 2012 - 2015 nanohttpd \n");
+                page.append("*%% \n");
+                page.append("*Redistribution and use in source and binary forms, with or without modification, \n");
+                page.append("*are permitted provided that the following conditions are met:\n");
+                page.append("*\n");
+                page.append("*1. Redistributions of source code must retain the above copyright notice, this\n");
+                page.append("* list of conditions and the following disclaimer.\n");
+                page.append("*\n");
+                page.append("*2. Redistributions in binary form must reproduce the above copyright notice,\n");
+                page.append("*this list of conditions and the following disclaimer in the documentation\n");
+                page.append("*and / or other materials provided with the distribution.\n");
+                page.append("*\n");
+                page.append("*3. Neither the name of the nanohttpd nor the names of its contributors\n");
+                page.append("*may be used to endorse or promote products derived from this software without\n");
+                page.append("*specific prior written permission.\n");
+                page.append("*\n");
+                page.append("*THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND\n");
+                page.append("*ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED\n");
+                page.append("*WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.\n");
+                page.append("*IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,\n");
+                page.append("*INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,\n");
+                page.append("*BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\n");
+                page.append("*DATA, OR PROFITS; OR BUSINESS INTERRUPTION)HOWEVER CAUSED AND ON ANY THEORY OF\n");
+                page.append("*LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE\n");
+                page.append("*OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED\n");
+                page.append("*OF THE POSSIBILITY OF SUCH DAMAGE.\n");
+
+                return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, NanoHTTPD.MIME_PLAINTEXT, page.toString());
+
+            }
+
+            //default
+
+
+            StringBuilder page = new StringBuilder(2048);
+
+            page.append("<html><head><title>Occlusion Control</title><meta http-equiv=\"refresh\" content=\""+ Integer.toString(REFRESH)+"; URL=" + serverURL + "\"/></head><body>");
+            page.append("<a href=\"" + serverURL + "/listing\">file listing</a><br/><a href=\"" + serverURL + "/licence\">NanoHttpd licence</a><hr/>");
+
+            if (mRunning) {
+                page.append("<br/>Experiment is running <a href=\"" + serverURL + "/control?command=stop\">[Stop]</a>");
+            } else {
+                page.append("<br/><a href=\"" + serverURL + "/control?command=start\">[Start Experiment]</a>");
+            }
+
+            if (mTactile) {
+                page.append("<br/>Tactile is on : <a href=\"" + serverURL + "/control?command=tactileOff\">[switch off]</a>");
+            } else {
+                page.append("<br/><a href=\"" + serverURL + "/control?command=tactileOn\">[Tactile on]</a>");
+            }
+
+            if (mVisual) {
+                page.append("<br/>Visual is on : <a href=\"" + serverURL + "/control?command=visualOff\">[switch off]</a>");
+            } else {
+                page.append("<br/><a href=\"" + serverURL + "/control?command=visualOn\">[Visual on]</a>");
+            }
+
+            if (mLongPressAlarmEnabled) {
+                page.append("<br/>Longpress alarm is on : <a href=\"" + serverURL + "/control?command=longpressOff\">[switch off]</a>");
+            } else {
+                page.append("<br/><a href=\"" + serverURL + "/control?command=longpressOn\">[Longpress alarm on]</a></li>");
+            }
+
+            if (mExternalButtonEnabled) {
+                page.append("<br/>External button enabled: <a href=\"" + serverURL + "/control?command=externalOff\">[switch off]</a>");
+            } else {
+                page.append("<br/><a href=\"" + serverURL + "/control?command=externalOn\">[Enable external button]</a>");
+            }
+
+            if (mCount > 0){
+                page.append("<hr/>");
+                page.append(getResultStat(true));
+                page.append("<hr/>");
+            }
+
+            page.append("<br/>current experimental marker:"+(char)mMarker);
+
+
+            page.append("<br/>set marker: ");
+            page.append("<a href=\"" + serverURL + "/control?command=marker&marker=0\"> [ 0 ] </a>");
+            page.append("<a href=\"" + serverURL + "/control?command=marker&marker=1\"> [ 1 ] </a>");
+            page.append("<a href=\"" + serverURL + "/control?command=marker&marker=2\"> [ 2 ] </a>");
+            page.append("<a href=\"" + serverURL + "/control?command=marker&marker=3\"> [ 3 ] </a>");
+            page.append("<a href=\"" + serverURL + "/control?command=marker&marker=4\"> [ 4 ] </a>");
+            page.append("<a href=\"" + serverURL + "/control?command=marker&marker=5\"> [ 5 ] </a>");
+            page.append("<a href=\"" + serverURL + "/control?command=marker&marker=6\"> [ 6 ] </a>");
+            page.append("<a href=\"" + serverURL + "/control?command=marker&marker=7\"> [ 7 ] </a>");
+            page.append("<a href=\"" + serverURL + "/control?command=marker&marker=8\"> [ 8 ] </a>");
+            page.append("<a href=\"" + serverURL + "/control?command=marker&marker=9\"> [ 9 ] </a>");
+            page.append("</li>");
+            page.append("</ul><br/>[updates every "+Integer.toString(REFRESH)+"s]</body></html>");
+
+            return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, NanoHTTPD.MIME_HTML, page.toString());
+
+        }
+    }
+    //-------------------------------------------------------------------
+    private void startWebServer(){
+        mWebserver = new WebServer();
+        try {
+            mWebserver.start();
+        } catch(Exception e) {
+            Log.e(TAG, "Error while web starting:"+e.getMessage());
+        }
+        Log.i(TAG, "Web server started");
+    }
+
+    private void stopWebServer(){
+        if (mWebserver != null) mWebserver.stop();
+    }
+
+    private String getLoggingFolder(){//helper
+        return Environment.getExternalStorageDirectory () + File.separator + FOLDER + File.separator;
+    }
+    //-------------------------------------------------------------------
 	
 		
 		
@@ -298,7 +581,17 @@ public class Mdt extends Activity {
                 closeSockets();
                 
 	        }//run
-	        
+
+            public String ipStatus(){
+                String tempStr = "";
+                if((mServerSocket != null) && (mServerSocket.isBound()) ){
+                    tempStr += getIpAddress() + ":"+PORT;
+                }else{
+                    tempStr += "-----";
+                }
+                return tempStr;
+            }
+
 	        //helpers
             public void closeSockets(){
                 try{
@@ -308,37 +601,27 @@ public class Mdt extends Activity {
                 	  Log.e(TAG,"ServerThread failed to close sockets: "+ e.getMessage());
                   }
             }
-            
-	    	public String ipStatus(){
-	    		String tempStr = "";
-	    	      if((mServerSocket != null) && (mServerSocket.isBound()) ){
-	    		       tempStr += getIpAddress() + ":"+PORT;
-	    		      }else{
-	    			       tempStr += "-----";	    	  
-	    		      }
-	    	      return tempStr;
-	    	}
-	    	
-	    	public String getIpAddress(){
-	    	    try {
-	    	        for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();) {
-	    	            NetworkInterface intf = en.nextElement();
-	    	            for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();) {
-	    	                InetAddress inetAddress = enumIpAddr.nextElement();
-	    	                if (!inetAddress.isLoopbackAddress() && inetAddress instanceof Inet4Address) {
-	    	                    return inetAddress.getHostAddress().toString();
-	    	                }
-	    	            }
-	    	        }
-	    	    } catch (Exception e) {
-	    			Log.e(TAG, "getIpAddress() failed: " + e.getMessage());
-	    	    }
-	    	    return "---";
-	    	}	
-	    	
-       
+
 	    }
-	    
+
+
+    //-------------------------------------------------------------------
+    public String getIpAddress(){
+        try {
+            for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();) {
+                NetworkInterface intf = en.nextElement();
+                for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();) {
+                    InetAddress inetAddress = enumIpAddr.nextElement();
+                    if (!inetAddress.isLoopbackAddress() && inetAddress instanceof Inet4Address) {
+                        return inetAddress.getHostAddress().toString();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "getIpAddress() failed: " + e.getMessage());
+        }
+        return "---";
+    }
 	//-------------------------------------------------------------------
 	
 		class CommunicationThread implements Runnable {
@@ -381,18 +664,18 @@ public class Mdt extends Activity {
 						if (read != -1){							  
 							
 						       switch(read) {
-						       
+
 					            case START_SIGN:
-					            	start();
+                                    startExp();
 					                break;
 					            case START_CODE:
-					            	start();
+                                    startExp();
 					                break;
 					            case STOP_SIGN:
-					            	stop();
+					            	stopExp();
 					                break;
 					            case STOP_CODE:
-					            	stop();
+					            	stopExp();
 					                break;
 					            case TACTILE_OFF_SIGN:
 					            	mTactile= false;
@@ -1190,22 +1473,7 @@ public class Mdt extends Activity {
 		   			if (mAudioRecorderRunnable != null) thresholdSB.setSecondaryProgress(mAudioRecorderRunnable.getAvgAudioLevel());//visualize audio level
 		   			//show stats
 			   	   if (mCount > 0){
-			 	   	   double avgRt = getAvgRt();
-				   	   double hitRate = getHitRate();
-				   	   DecimalFormat rateFormat = new DecimalFormat("##0");
-				   	   DecimalFormat rtFormat = new DecimalFormat("#000");
-				   	   StringBuilder temp = new StringBuilder(4096);	   	   
-				   	    temp.append("Average RT:");
-				   	    temp.append(rtFormat.format(avgRt));
-			   			temp.append("ms");
-			   			temp.append("\r\nHit Rate:");
-			   			temp.append(rateFormat.format(hitRate));
-			   			temp.append("%");
-			   			temp.append("\r\nStimulus Count:");
-			   			temp.append(Integer.toString(mCount));
-			   			//temp.append("\r\nIP:Port: ");
-			   			//temp.append(mServerRunnable.ipStatus());
-			   			resultV.setText(temp.toString());
+			   			resultV.setText(getResultStat(false));
 			   	   }
 		   			
 		   		}
@@ -1217,20 +1485,51 @@ public class Mdt extends Activity {
 		   	   responseB.setEnabled(mRunning);						
 		}
 	}
-	
+
+    public String getResultStat(boolean html){//helper
+        double avgRt = getAvgRt();
+        double hitRate = getHitRate();
+        DecimalFormat rateFormat = new DecimalFormat("##0");
+        DecimalFormat rtFormat = new DecimalFormat("#000");
+        StringBuilder temp = new StringBuilder(4096);
+        temp.append("Average RT:");
+        temp.append(rtFormat.format(avgRt));
+        temp.append("ms");
+        if (html){
+            temp.append("<br/>");
+        }else{
+            temp.append("\r\n");
+        }
+        temp.append("Hit Rate:");
+        temp.append(rateFormat.format(hitRate));
+        temp.append("%");
+        if (html){
+            temp.append("<br/>");
+        }else{
+            temp.append("\r\n");
+        }
+        temp.append("Stimulus Count:");
+        temp.append(Integer.toString(mCount));
+        //temp.append("\r\nIP:Port: ");
+        //temp.append(mServerRunnable.ipStatus());
+        return temp.toString();
+    }
+
 	public void	refreshGui(){//refresh/set enabled statuses of buttons etc.
 		mHandler.post(new refresh());
 	}
 	
 	
-	public void start(View v){//stub is called by click on startButton
-		start();
+	public void startExp(View v){//stub is called by click on startButton
+        startExp();
 	}
 	
 	
-	public void	start(){//is called by click on startButton or external TCP command
+	public void	startExp(){//is called by click on startButton or external TCP command
 
-			if (mRunning) {return;}//experiment already running so return, dont start multiple times!
+        if (mAlert !=null){ mAlert.cancel(); }
+
+		if (mRunning) {return;}//experiment already running so return, dont start multiple times!
 		   
 		   mRunning = true;
 		   refreshGui();		   
@@ -1266,11 +1565,11 @@ public class Mdt extends Activity {
 		   mNextOnset = now + nextSoa;		   	   
 	}		
 	
-	public void	stop(View v){//stub is called by click on stopButton;
-		stop();
+	public void	stopExp(View v){//stub is called by click on stopButton;
+		stopExp();
 	}	
 	
-	public void	stop(){//is called by click on stopButton or external TCP command
+	public void	stopExp(){//is called by click on stopButton or external TCP command
 		   mRunning = false;
 	       mHandler.removeCallbacks(stimulusOnset);
 	       appendPacketToSend(PACKET_TYPE_STOP, 0, mExternalButtonEnabled);// send a tcp packet that signals we stopped
@@ -1327,7 +1626,7 @@ public class Mdt extends Activity {
 		String timestamp = Long.toString(Calendar.getInstance(TimeZone.getTimeZone("UTC")).getTimeInMillis());
 	   try{
 		   //try to prepare external logging
-		   String folderStr = Environment.getExternalStorageDirectory () + File.separator + FOLDER + File.separator + folderTimeStr;
+           String folderStr = getLoggingFolder() + folderTimeStr;
 		   file = new File(folderStr, timestamp + FILE_EXT);
 		   folder = new File(folderStr);
 		   folder.mkdirs();//create missing dirs
@@ -1395,7 +1694,9 @@ public class Mdt extends Activity {
         
         getWakeLock();
         
-		startServer();
+		startServer();//telnet
+
+        startWebServer();//http
 
         
         if(mExternalButtonEnabled){
@@ -1409,7 +1710,7 @@ public class Mdt extends Activity {
         super.onPause();
         
         if(mRunning){
-        	stop();        	
+        	stopExp();
         }
         if(mWakeLock != null){
         	mWakeLock.release();
@@ -1471,7 +1772,9 @@ public class Mdt extends Activity {
 	    protected void onStop() {
 	        super.onStop();
 	        
-	        stopServer();
+	        stopServer();//telnet
+
+            stopWebServer();//http
 	    }	
 	
 	/*
@@ -1516,22 +1819,24 @@ public class Mdt extends Activity {
 		showHelp();
 	}
 	public void showHelp(){
-		
-	      String tempStr = "IP:Port: ";
-	      tempStr += mServerRunnable.ipStatus();
-	      tempStr += "<br/>send e.g. via telnet:<br/>'"+ START_SIGN +"' / '"+ STOP_SIGN +"' to start/stop";
-	      tempStr += "<br/>'"+ TACTILE_ON_SIGN +"' / '"+ TACTILE_OFF_SIGN +"' tactile on/off";
-	      tempStr += "<br/>'"+ VISUAL_ON_SIGN +"' / '"+ VISUAL_OFF_SIGN +"' to switch visual on/off";
-	      tempStr += "<br/>'"+ LONGPRESS_ALARM_ON_SIGN +"' / '"+ LONGPRESS_ALARM_OFF_SIGN +"' long press alarm on/off";
-	      tempStr += "<br/>'"+ EXTERNAL_BUTTON_ON_SIGN +"' / '"+ EXTERNAL_BUTTON_OFF_SIGN +"' to enable/disable external button";	      
-	      tempStr += "<br/><br/>" + getVersionString() + " <a href=\"mailto:krause@tum.de\">krause@tum.de</a> 2014\nInstitute of Ergonomics, TUM.";
-	      tempStr += "<br/><br/>More information on MDT, etc. on <a href=\"http://www.lfe.mw.tum.de/en/mdt\">http://www.lfe.mw.tum.de/en/mdt</a>";
-          tempStr += "<br/> This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.";
+        StringBuilder help = new StringBuilder(2048);
 
-	      final SpannableString s = new SpannableString(Html.fromHtml(tempStr));
+        help.append("If you do experiments secure your network appropriately. You can use a web browser to connect to:"+getIpAddress()+ ":"+Integer.toString(WEB_PORT));
+        help.append("<br/>or telnet to IP:Port: ");
+        help.append(mServerRunnable.ipStatus());
+        help.append("<br/>send e.g. via telnet:<br/>'"+ START_SIGN +"' / '"+ STOP_SIGN +"' to start/stop");
+        help.append("<br/>'"+ TACTILE_ON_SIGN +"' / '"+ TACTILE_OFF_SIGN +"' tactile on/off");
+        help.append("<br/>'"+ VISUAL_ON_SIGN +"' / '"+ VISUAL_OFF_SIGN +"' to switch visual on/off");
+        help.append("<br/>'"+ LONGPRESS_ALARM_ON_SIGN +"' / '"+ LONGPRESS_ALARM_OFF_SIGN +"' long press alarm on/off");
+        help.append("<br/>'"+ EXTERNAL_BUTTON_ON_SIGN +"' / '"+ EXTERNAL_BUTTON_OFF_SIGN +"' to enable/disable external button");
+        help.append("<br/><br/>" + getVersionString() + " <a href=\"mailto:krause@tum.de\">krause@tum.de</a> 2014\nInstitute of Ergonomics, TUM.");
+        help.append("<br/><br/>More information on MDT, etc. on <a href=\"http://www.lfe.mw.tum.de/en/mdt\">http://www.lfe.mw.tum.de/en/mdt</a>");
+        help.append("<br/> This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.");
+
+	      final SpannableString s = new SpannableString(Html.fromHtml(help.toString()));
 	      Linkify.addLinks(s, Linkify.EMAIL_ADDRESSES|Linkify.WEB_URLS);
 	      
-	      AlertDialog alert = new AlertDialog.Builder(this)
+	       mAlert = new AlertDialog.Builder(this)
 	          .setMessage( s )
 		      .setTitle("Mobile Detection Task (MDT)")
 		      .setPositiveButton(android.R.string.ok,
@@ -1540,7 +1845,7 @@ public class Mdt extends Activity {
 		         })
 		      .show();
 		   
-		   ((TextView)alert.findViewById(android.R.id.message)).setMovementMethod(LinkMovementMethod.getInstance()); 
+		   ((TextView)mAlert.findViewById(android.R.id.message)).setMovementMethod(LinkMovementMethod.getInstance());
 	
 	}
 

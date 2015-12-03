@@ -1,0 +1,51 @@
+#SILAB snippet to connect MDT smartphone to SILAB driving simulation and control via the operator keyboard
+
+DPUSocket mySmartphoneMDT
+{
+    Computer = { OPERATOR };
+    Index = 100;
+    #BigEndian [true/false]
+    BigEndian = false;
+    #Socket_IsTCPIP TCP/IP [=true] or UDP [=false]
+    Socket_IsTCPIP = true;
+    Socket_IP = "192.168.2.165";
+    Socket_IsServer = false;
+    Socket_PortSend = 7007;
+    Socket_PortReceive = 7000;
+    #SendDefinition packet definition
+    SendDefinition = (
+        (remoteControl,ubyte)
+    );
+    #ReceiveDefinition packet definition
+    ReceiveDefinition = (
+        (count, ulong), #count, counts up on every stimulus
+        (onsetL, ulong), #onset milliseconc unix timestamp, lower 4 bytes
+        (onsetH, ulong), #onset milliseconc unix timestamp, upper 4 bytes
+        (onsetDiff, long), #onsetDifference milliseconds: diff = (planedNextOnset - whatReallyHappened)
+        (nextOnsetL, ulong), #next onset milliseconc unix timestamp, lower 4 bytes
+        (nextOnsetH, ulong), #next onset milliseconc unix timestamp, upper 4 bytes
+        (rt, ulong), #reaction time milliseconds
+        (result, byte), #0=cheat 1=hit 2=miss 3=expStart 4=expStop
+        (buttonDownCount, ulong),#how often screen was touched
+        (visual, ubyte), #uses visual mode
+        (tactile, ubyte), #uses tactile mode
+        (longPressAlarmEnabled, ubyte), #is long press alarm enabled
+        (mLongPressAlarmCount, ulong), #how often long press alarm was activated
+        (externalButton, ubyte), #reaction comes from external button
+        (marker, ubyte), #which marker is currently set on smartphone
+        (queuedPackets, ulong) #queued packets on the smartphone to send
+    );
+
+};
+Connections =
+{
+    myKeyboard.Key mySmartphoneMDT.remoteControl #keyboard can start/stop and controll the experiment
+    # myHedgehogKiller.Out2 mySmartphoneMDT.remoteControl #hedgehog can also start/stop and controll the experiment
+};
+#--------------------------------------------------------------
+DPUKeyboard myKeyboard
+{
+    Computer = { OPERATOR };
+    Index = 100;
+};
+#-----------------------------------------------------------
